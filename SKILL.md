@@ -35,6 +35,17 @@ npx github:Madwr1d/ithildin-agent ping
 All commands print JSON. The key authenticates as the owner — keep it in the
 environment, never echo it into chat. Auth failures return HTTP 401.
 
+## Deep integration (MCP server)
+For Claude Desktop / Claude CLI as native tools (instead of shelling out to the CLI):
+```bash
+git clone https://github.com/Madwr1d/ithildin-agent && cd ithildin-agent && npm i
+export ITHILDIN_API_KEY="ith_..."
+claude mcp add ithildin -- node mcp/index.mjs
+```
+Exposes tools: `ithildin_ping`, `ithildin_leads_list`, `ithildin_lead_add`,
+`ithildin_dialer_queue`, `ithildin_dialer_outcome`, `ithildin_planner_list`,
+`ithildin_planner_add`, `ithildin_argent_summary`, `ithildin_clients_list`.
+
 ## Example agent task
 "Work my lead list": run `ithildin dialer queue`, and for each result help the
 user call, then `ithildin dialer outcome --lead <id> --outcome ...`. Or "fill my
