@@ -1,0 +1,34 @@
+#!/bin/sh
+# Block commits that stage a secret. Uses gitleaks (~/bin/gitleaks or on PATH).
+# If gitleaks is missing, warn and allow — install it rather than skipping the hook.
+# Real false positive? Add it to .gitleaks.toml, or mark the line with  gitleaks:allow
+GL=""
+for c in "$HOME/bin/gitleaks" "$HOME/bin/gitleaks.exe" "$(command -v gitleaks 2>/dev/null)"; do
+  [ -n "$c" ] && [ -x "$c" ] && { GL="$c"; break; }
+done
+if [ -z "$GL" ]; then
+  echo "pre-commit: gitleaks not found (~/bin/gitleaks or PATH) — secret scan SKIPPED. Install: https://github.com/gitleaks/gitleaks/releases" >&2
+  exit 0
+fi
+
+ROOT=$(git rev-parse --show-toplevel)
+CFG=""
+[ -f "$ROOT/.gitleaks.toml" ] && CFG="--config=$ROOT/.gitleaks.toml"
+
+# 'protect --staged' is the classic form (deprecated alias in 8.19+ but still works);
+# fall back to 'git --staged' if a future release drops it.
+if "$GL" protect --help >/dev/null 2>&1; then
+  "$GL" protect --staged --redact --no-banner --verbose $CFG
+else
+  "$GL" git --staged --redact --no-banner --verbose $CFG
+fi
+rc=$?
+if [ $rc -eq 1 ]; then
+  echo "" >&2
+  echo "pre-commit: gitleaks found a secret in the staged changes (values redacted above). Commit BLOCKED." >&2
+  echo "  Unstage it (git restore --staged <file>), move the value to .env / the secrets store, and retry." >&2
+  exit 1
+elif [ $rc -ne 0 ]; then
+  echo "pre-commit: gitleaks exited $rc (tool error) — allowing commit, please check." >&2
+fi
+exit 0
