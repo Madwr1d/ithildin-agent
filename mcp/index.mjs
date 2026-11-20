@@ -1,47 +1,52 @@
 #!/usr/bin/env node
-// Ithildin MCP server — exposes the Agent API as MCP tools for Claude Desktop/CLI.
-// Auth: ITHILDIN_API_KEY (env). Optional ITHILDIN_BASE_URL (default https://ithild.info).
-//   claude mcp add ithildin node mcp/index.mjs
+// Ithildin MCP server — the Agent API as MCP tools for Claude Desktop / CLI,
+// Grok, or any MCP client.
+//
+// Auth: ITHILDIN_AGENT_TOKEN (a scoped agent token the owner creates in the
+// Ithildin app: Internal → Agents). Optional ITHILDIN_BASE_URL.
+//   claude mcp add ithildin -e ITHILDIN_AGENT_TOKEN=<token> -- node mcp/index.mjs
+//
+// What a model gets here:
+//   • read tools and low-risk write tools, but only those the token's scopes
+//     allow (the server tells us at startup);
+//   • "propose" tools for high-risk actions. They never send, delete or run
+//     anything: the server records a proposal and the owner approves it in the
+//     app. The tool answers "proposed: <id>, approve in the app".
+//   • no tool that creates a token, changes a scope or approves a proposal.
+//     Those do not exist in the Agent API at all.
+//
+// The legacy owner key (ITHILDIN_API_KEY) is NOT accepted by this server.
+import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
+import { TOOLS } from "./tools.mjs";
 
-const BASE = process.env.ITHILDIN_BASE_URL || "https://ithild.info";
-const KEY = process.env.ITHILDIN_API_KEY || "";
+const require = createRequire(import.meta.url);
+const { resolveCredential, callAgent, formatForModel, filterTools } = require("../lib/client.js");
 
-async function call(action, args = {}) {
-  if (!KEY) return { error: "ITHILDIN_API_KEY not set" };
-  try {
-    const res = await fetch(`${BASE}/api/agent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` },
-      body: JSON.stringify({ action, ...args }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { error: data.error || `HTTP ${res.status}` };
-    return data;
-  } catch (e) {
-    return { error: String(e?.message || e) };
-  }
+const credential = resolveCredential(process.env, { allowLegacy: false });
+const call = (action, args) => callAgent(action, args, { credential });
+const text = (s) => ({ content: [{ type: "text", text: s }] });
+
+// Ask the server what this token can reach, and show the model only that.
+// If the server cannot be reached now, show the catalog: every call is still
+// checked by the server, so a tool the token cannot use is refused there.
+let reachable = null;
+if (credential.kind === "token") {
+  const ping = await call("ping");
+  if (ping.ok && Array.isArray(ping.data.actions)) reachable = ping.data.actions;
+  else console.error(`[ithildin-mcp] could not read the token's scopes (${ping.error || "no answer"}). Showing all tools; the server still enforces the scopes.`);
+} else {
+  console.error(`[ithildin-mcp] ${credential.error}`);
 }
-const text = (obj) => ({ content: [{ type: "text", text: JSON.stringify(obj, null, 2) }] });
 
-const server = new McpServer({ name: "ithildin", version: "0.1.0" });
+const server = new McpServer({ name: "ithildin", version: "0.2.0" });
 
-server.tool("ithildin_ping", "Check auth + connectivity", {}, async () => text(await call("ping")));
-server.tool("ithildin_leads_list", "List all sales leads", {}, async () => text(await call("leads.list")));
-server.tool("ithildin_lead_add", "Add a sales lead",
-  { businessName: z.string(), phone: z.string().optional(), city: z.string().optional(), industry: z.string().optional(), email: z.string().optional() },
-  async (a) => text(await call("lead.add", a)));
-server.tool("ithildin_dialer_queue", "Get the callable lead queue", {}, async () => text(await call("dialer.queue")));
-server.tool("ithildin_dialer_outcome", "Log a call outcome for a lead",
-  { leadId: z.string(), outcome: z.enum(["interested", "reached", "callback", "voicemail", "no_answer", "not_interested"]), leadName: z.string().optional(), note: z.string().optional() },
-  async (a) => text(await call("dialer.outcome", a)));
-server.tool("ithildin_planner_list", "List planner tasks", {}, async () => text(await call("planner.list")));
-server.tool("ithildin_planner_add", "Add a planner task",
-  { title: z.string(), project: z.string().optional(), dueDate: z.string().optional(), leadDays: z.number().optional() },
-  async (a) => text(await call("planner.add", a)));
-server.tool("ithildin_argent_summary", "Net worth / cashflow summary", {}, async () => text(await call("argent.summary")));
-server.tool("ithildin_clients_list", "List CRM clients", {}, async () => text(await call("clients.list")));
+for (const tool of filterTools(TOOLS, reachable)) {
+  server.tool(tool.name, tool.description, tool.shape, async (args) => {
+    const result = await call(tool.action, tool.args ? tool.args(args) : args);
+    return text(formatForModel(result)); // every result is marked as data, between delimiters
+  });
+}
 
 await server.connect(new StdioServerTransport());
