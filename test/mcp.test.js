@@ -62,6 +62,11 @@ test("MCP: a high-risk tool returns 'proposed: <id>, approve in the app'; a read
 
     const status = await client.callTool({ name: "ithildin_proposal_status", arguments: { id: "prop_test1" } });
     assert.match(textOf(status), /"status": "proposed"/);
+    // EVERY result is data between delimiters, not only the reads that were flagged.
+    assert.ok(textOf(status).startsWith(DATA_NOTICE));
+    assert.match(textOf(status), /-----BEGIN ITHILDIN DATA ([0-9a-f]{12})-----[^]*-----END ITHILDIN DATA \1-----$/);
+    const ping = await client.callTool({ name: "ithildin_ping", arguments: {} });
+    assert.ok(textOf(ping).startsWith(DATA_NOTICE));
 
     // The token never appears in what a model reads.
     for (const r of [mail, exec, leads, status]) assert.ok(!textOf(r).includes(TOKEN));

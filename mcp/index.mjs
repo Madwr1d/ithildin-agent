@@ -45,7 +45,7 @@ const server = new McpServer({ name: "ithildin", version: "0.2.0" });
 for (const tool of filterTools(TOOLS, reachable)) {
   server.tool(tool.name, tool.description, tool.shape, async (args) => {
     const result = await call(tool.action, tool.args ? tool.args(args) : args);
-    return text(formatForModel(result, { untrusted: Boolean(tool.untrusted) }));
+    return text(formatForModel(result)); // every result is marked as data, between delimiters
   });
 }
 

@@ -6,7 +6,9 @@
 //             "execute"  a low-risk write, runs with execute:<area>
 //             "propose"  HIGH-RISK. The server never executes it for a token.
 //                        It records a proposal; the owner approves in the app.
-//   untrusted  the result carries stored content (lead notes, mail, documents)
+//   untrusted  the result carries stored content (lead notes, mail, documents).
+//              Informational: EVERY tool result is marked as data and put
+//              between delimiters, whether this is set or not.
 //   always  no scope needed
 //
 // The server enforces all of this. The catalog only decides which tools a

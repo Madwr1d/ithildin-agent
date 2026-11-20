@@ -15,10 +15,19 @@ An agent works with a **scoped agent token**. The owner creates it in the Ithild
 |---|---|
 | A read (list leads, read the ledger) | Runs, if the token has `read:<area>`. |
 | A low-risk write (add a lead, add a task, draft an invoice) | Runs, if the token has `execute:<area>`. |
-| A high-risk action (send an e-mail, send an invoice, clear the ledger, run a command on a PC) | **Never runs for a token.** With `propose:<area>` it becomes a proposal. The owner approves it in the app. The answer is `proposed: <id>, approve in the app`. |
+| A high-risk action (send an e-mail, send an invoice, clear the ledger, run a command or read or write a file on a PC) | **Never runs for a token.** With `propose:<area>` it becomes a proposal. The owner approves it in the app. The answer is `proposed: <id>, approve in the app`. |
 | Creating a token, changing scopes, approving a proposal | Not possible through the Agent API. Only the owner can, signed in to the app. |
 
 The server enforces this. The CLI and the MCP server only report the answer.
+
+Details that matter:
+
+- An e-mail proposal takes `to`, `subject`, `text` and `from`, nothing else. The server renders the final message and shows the owner exactly what will be sent. HTML and other fields are refused.
+- A device job reaches only the owner's own paired devices. `sysinfo` is the only read. There is no file tool: a file read on a PC is high-risk on the server and its result goes to the owner, not to the agent.
+- `invoice draft` returns the existing draft when the job already has an unsent one. It does not take a new invoice number.
+- `argent save` (API) is add-only: a row that matches a stored row is skipped, never merged into it.
+- The token is sent over https only. `ITHILDIN_BASE_URL` must be `https://…`; plain `http://` is accepted for `localhost` and `127.0.0.1` only. With any other value no request is made.
+- Every MCP tool result is marked as data and put between two delimiter lines with a random marker, so text inside a record cannot pose as an instruction or end the block.
 
 ## Install / run
 
@@ -76,7 +85,8 @@ Earlier versions used one owner key in `ITHILDIN_API_KEY`. It had every right an
 
 1. Create a scoped token in the app for each agent.
 2. Set `ITHILDIN_AGENT_TOKEN` where the agent runs and remove `ITHILDIN_API_KEY` there.
-3. The CLI still accepts `ITHILDIN_API_KEY` during the move and prints a warning. The MCP server does not accept it.
+3. Replace the old key's value on the host, or suspend the key in the app, on the same day. Do not leave an old key live "until nothing uses it": a key that was ever pasted into a chat is leaked.
+4. The CLI still accepts `ITHILDIN_API_KEY` during the move and prints a warning. The MCP server does not accept it. On the server the old key has the limits of a default token, and every device job it sends is a proposal.
 
 Keep the token in your environment. Never paste it into a chat.
 
