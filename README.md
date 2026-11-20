@@ -25,7 +25,8 @@ Details that matter:
 - An e-mail proposal takes `to`, `subject`, `text` and `from`, nothing else. The server renders the final message and shows the owner exactly what will be sent. HTML and other fields are refused.
 - A device job reaches only the owner's own paired devices. `sysinfo` is the only read. There is no file tool: a file read on a PC is high-risk on the server and its result goes to the owner, not to the agent.
 - `invoice draft` returns the existing draft when the job already has an unsent one. It does not take a new invoice number.
-- `argent save` (API) is add-only: a row that matches a stored row is skipped, never merged into it.
+- `argent save` (API) is add-only: a row that matches a stored row is skipped, never merged into it. A change to a stored row is the high-risk API action `argent.update` (a proposal that shows each changed field; needs `propose:argent`).
+- The mailbox scan (`argent.gmail.scan`) needs `read:email`; the old owner key cannot run it.
 - The token is sent over https only. `ITHILDIN_BASE_URL` must be `https://…`; plain `http://` is accepted for `localhost` and `127.0.0.1` only. With any other value no request is made.
 - Every MCP tool result is marked as data and put between two delimiter lines with a random marker, so text inside a record cannot pose as an instruction or end the block.
 
